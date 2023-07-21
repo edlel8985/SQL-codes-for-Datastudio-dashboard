@@ -1,0 +1,165 @@
+------------ONLINE 2
+
+SELECT *
+	FROM (SELECT *,
+				CASE WHEN SalesPersonID IS NULL THEN 'online'
+					ELSE 'offline' END Online_flag,
+			FROM `tc-da-1.adwentureworks_db.salesorderheader`
+			 JOIN `tc-da-1.adwentureworks_db.salesterritory`
+			 USING (TerritoryID))
+	WHERE Online_flag='online'
+
+
+-----------Sales_Persons
+
+SELECT CONCAT(IFNULL(contact.Title, ''), ' ', IFNULL(firstname, ''), ' ', IFNULL(middlename, ''), ' ', IFNULL(lastname, ''), ' ', IFNULL(suffix, '')) AS sales_person,
+		sales_order.SalesOrderID,
+		sales_person.SalesPersonID,
+		CASE WHEN sales_order.SalesPersonID IS NULL THEN 'online'
+			ELSE 'offline' END Online_flag,
+		CAST(sales_order.OrderDate as DATE) order_date, 
+		sales_order.TotalDue sales_value
+FROM `tc-da-1.adwentureworks_db.contact` contact
+ JOIN `adwentureworks_db.employee` employee
+ USING(ContactID)
+ JOIN `adwentureworks_db.salesperson` sales_person
+ On EmployeeId=SalesPersonID
+ JOIN `adwentureworks_db.salesorderheader` sales_order
+ USING (SalesPersonID)
+
+------------OFFLINE
+
+
+
+SELECT 	sales_person,
+		TotalDue,
+		CAST(OrderDate as DATE) order_date,
+		CustomerID,
+		SalesOrderID,
+		SalesPersonID,
+		sales_territory,
+		TerrID
+FROM (SELECT *,
+			CONCAT(IFNULL(contact.Title, ''), ' ', IFNULL(firstname, ''), ' ', IFNULL(middlename, ''), ' ', IFNULL(lastname, ''), ' ', IFNULL(suffix, '')) AS sales_person,
+			CASE WHEN SalesPersonID IS NULL THEN 'online'
+			ELSE 'offline' END Online_flag,
+			territory.Name sales_territory,
+			territory.TerritoryID TerrID
+		FROM `tc-da-1.adwentureworks_db.salesterritory` territory
+		 JOIN `tc-da-1.adwentureworks_db.salesorderheader` sales_order
+		 USING(TerritoryID)
+ JOIN `adwentureworks_db.salesperson` sales_person
+ USING (SalesPersonID)
+ JOIN `adwentureworks_db.employee` employee
+ On EmployeeId=SalesPersonID
+ JOIN `tc-da-1.adwentureworks_db.contact` contact
+ ON employee.ContactID=contact.ContactId) main
+WHERE Online_flag='offline' 
+
+
+----------------Online product
+
+
+SELECT * 
+FROM (SELECT
+    product.Name product,
+    CASE WHEN sales_order.SalesPersonID IS NULL THEN 'online'
+      ELSE 'offline' END Online_flag,
+    order_detail.OrderQty quantity,
+    sales_order.SalesOrderID,
+    sales_order.CustomerID,
+    CAST(OrderDate as DATE) order_date,
+    order_detail.UnitPrice Unit_Price,
+  	reason.Name reason,
+    product.ListPrice List_Price,
+    product.StandardCost  Standard_Cost
+    FROM `tc-da-1.adwentureworks_db.product` product
+     JOIN `adwentureworks_db.specialofferproduct` sp_offer
+     USING (ProductID)
+     JOIN `adwentureworks_db.salesorderdetail` order_detail
+     USING (ProductID)
+     JOIN `adwentureworks_db.salesorderheader` sales_order 
+     USING (SalesOrderID)
+     JOIN `adwentureworks_db.salesorderheadersalesreason` reason_id
+	 USING (SalesOrderID)
+	 JOIN `tc-da-1.adwentureworks_db.salesreason` reason
+ 	 USING (SalesReasonID))
+WHERE  Online_flag='online'
+
+
+
+
+-------------Online Customers CLV
+
+WITH t as (      
+            SELECT
+            Distinct CustomerID,
+            SUM(TotalDue)/ COUNT(SalesOrderID) AS AOV,
+            COUNT(SalesOrderID)/COUNT(distinct CustomerID) AS PF
+            FROM `tc-da-1.adwentureworks_db.salesorderheader`  
+            Where SalesPersonID IS NULL
+            Group by 1)
+SELECT  CustomerID,
+		ROUND(AOV,2) AS AOV_in_usd,
+        ROUND(PF,2) AS Purchase_Frequency,
+        ROUND(AOV * PF,2) AS Customer_Value_in_usd,
+        FROM t
+		
+		
+-------------Offline Customers CLV
+
+WITH t as (      
+            SELECT
+            Distinct CustomerID,
+            SUM(TotalDue)/ COUNT(SalesOrderID) AS AOV,
+            COUNT(SalesOrderID)/COUNT(distinct CustomerID) AS PF
+            FROM `tc-da-1.adwentureworks_db.salesorderheader`  
+            Where SalesPersonID IS NOT NULL
+            Group by 1)
+SELECT CustomerID,
+		ROUND(AOV,2) AS AOV_in_usd,
+        ROUND(PF,2) AS Purchase_Frequency,
+        ROUND(AOV * PF,2) AS Customer_Value_in_usd,
+        FROM t
+		
+		
+
+--------------salesterritory`
+
+
+SELECT 
+		territory.Name sales_territory,
+		territory.CountryRegionCode code,
+		territory.Group world_part,
+		sales_order.SalesOrderID,
+		sales_order.CustomerID,
+		CAST(OrderDate as DATE) order_date,
+		sales_order.TotalDue sales_value,
+		CASE WHEN sales_order.SalesPersonID IS NULL THEN 'online'
+			ELSE 'offline' END Online_flag
+FROM `tc-da-1.adwentureworks_db.salesterritory` territory
+ JOIN `adwentureworks_db.salesorderheader` sales_order
+ USING (TerritoryID)		
+
+
+--------------product
+
+
+SELECT 
+		product.Name product,
+		CASE WHEN sales_order.SalesPersonID IS NULL THEN 'online'
+			ELSE 'offline' END Online_flag,
+		order_detail.OrderQty quantity,
+		sales_order.SalesOrderID,
+		sales_order.CustomerID,
+		CAST(OrderDate as DATE) order_date,
+		order_detail.UnitPrice Unit_Price,
+		product.ListPrice List_Price,
+		product.StandardCost  Standard_Cost
+FROM `tc-da-1.adwentureworks_db.product` product
+ JOIN `adwentureworks_db.specialofferproduct` sp_offer
+ USING (ProductID)
+ JOIN `adwentureworks_db.salesorderdetail` order_detail
+ USING (ProductID)
+ JOIN `adwentureworks_db.salesorderheader` sales_order 
+ USING (SalesOrderID)
